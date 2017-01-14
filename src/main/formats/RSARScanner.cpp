@@ -13,7 +13,6 @@
 #include "SeqTrack.h"
 
 #include <locale>
-#include <codecvt>
 #include <string>
 #include <stack>
 
@@ -22,9 +21,9 @@ DECLARE_FORMAT(RSAR);
 /* Utility */
 
 static std::wstring string_to_wstring(std::string str) {
-	std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-	std::wstring wide = converter.from_bytes(str);
-	return wide;
+	wchar_t buf[256] = {};
+	mbstowcs(buf, str.c_str(), sizeof(buf));
+	return std::wstring(buf);
 }
 
 struct FileRange {
