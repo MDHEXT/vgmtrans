@@ -100,21 +100,21 @@ private:
 	void SetPerf(uint32_t beginOffset, uint8_t type, double value, uint16_t duration) {
 		if (type == MML_VOLUME) {
 			/* MIDI volume is between 0 and 7F */
-			uint8_t midValue = value * 0x7F;
+			uint8_t midValue = (uint8_t) (value * 0x7F);
 			if (duration == 0)
 				AddVol(beginOffset, curOffset - beginOffset, midValue);
 			else
 				AddVolSlide(beginOffset, curOffset - beginOffset, duration, midValue);
 		} else if (type == MML_PAN) {
 			/* MIDI pan is between 0 and 7F, with 3F being the center. */
-			uint8_t midValue = (value * 0x3F) + 0x3F;
+			uint8_t midValue = (uint8_t) ((value * 0x3F) + 0x3F);
 			if (duration == 0)
 				AddPan(beginOffset, curOffset - beginOffset, midValue);
 			else
 				AddPanSlide(beginOffset, curOffset - beginOffset, duration, midValue);
 		} else if (type == MML_PITCH) {
-			/* MIDI pitch is between 0 and 7FFFFFFF */
-			uint32_t midValue = value * 0x7FFFFFFF;
+			/* MIDI pitch is between 0 and 7FFF */
+			uint16_t midValue = (uint16_t) (value * 0x7FFF);
 			if (duration == 0)
 				AddPitchBend(beginOffset, curOffset - beginOffset, midValue);
 			else
@@ -151,7 +151,7 @@ private:
 			AddNoteOn(beginOffset, curOffset - beginOffset, note, vel);
 		} else if (status_byte == MML_WAIT_8) {
 			uint8_t waitTime = GetByte(curOffset++);
-			AddGenericEvent(beginOffset, curOffset - beginOffset, L"Wait", L"MML_WAIT_8", 0xCC00CC);
+			AddGenericEvent(beginOffset, curOffset - beginOffset, L"Rest", L"MML_WAIT_8", CLR_REST);
 			AddTime(waitTime);
 		} else if (status_byte < 0x88) {
 			/* Note off. */
@@ -163,13 +163,13 @@ private:
 			case MML_WAIT_16: {
 				uint16_t waitTime = GetShortBE(curOffset);
 				curOffset += 2;
-				AddGenericEvent(beginOffset, curOffset - beginOffset, L"Wait", L"MML_WAIT_16", 0xCC00CC);
+				AddGenericEvent(beginOffset, curOffset - beginOffset, L"Rest", L"MML_WAIT_16", CLR_REST);
 				AddTime(waitTime);
 				break;
 			}
 			case MML_WAIT_VAR: {
 				uint32_t waitTime = ReadVarLen(curOffset);
-				AddGenericEvent(beginOffset, curOffset - beginOffset, L"Wait", L"MML_WAIT_VAR", 0xCC00CC);
+				AddGenericEvent(beginOffset, curOffset - beginOffset, L"Rest", L"MML_WAIT_VAR", CLR_REST);
 				AddTime(waitTime);
 				break;
 			}
