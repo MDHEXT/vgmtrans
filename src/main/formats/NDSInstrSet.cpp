@@ -71,7 +71,7 @@ bool NDSInstr::LoadInstr() {
 
 	case 0x02: {
 		/* PGM Tone */
-		uint8_t dutyCycle = GetByte(dwOffset + 2) & 0x07;
+		uint8_t dutyCycle = GetByte(dwOffset) & 0x07;
 		std::wstring dutyCycles[8] = {
 			L"12.5%", L"25%", L"37.5%", L"50%", L"62.5%", L"75%", L"87.5%", L"0%"
 		};
