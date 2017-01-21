@@ -311,8 +311,10 @@ private:
 				AddUnknown(beginOffset, curOffset - beginOffset);
 				break;
 			case 0xB8:
+			case 0xCB:
 			case 0xE6: /* Vibrato */
 			case 0xE7: /* SyncGPU */
+			case 0xF9:
 				curOffset += 2;
 				AddUnknown(beginOffset, curOffset - beginOffset);
 				break;
