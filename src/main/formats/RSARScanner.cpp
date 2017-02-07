@@ -134,7 +134,7 @@ private:
   ArgType nextArgType;
 
   uint32_t ReadArg(ArgType defaultArgType, uint32_t &offset) {
-    ArgType argType = nextArgType == ARG_DEFAULT ? defaultArgType : nextArgType;
+    ArgType argType = defaultArgType; /* nextArgType == ARG_DEFAULT ? defaultArgType : nextArgType; */
     nextArgType = ARG_DEFAULT;
 
     switch (argType) {
@@ -169,8 +169,6 @@ private:
     }
     else {
       switch (status_byte) {
-      case MML_RANDOM:
-        break;
       case MML_WAIT:
         dur = ReadArg(ARG_VAR, curOffset);
         AddRest(beginOffset, curOffset - beginOffset, dur);
