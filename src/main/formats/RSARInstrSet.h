@@ -20,7 +20,7 @@ private:
   };
 
   struct Region {
-    uint32_t low;
+    uint32_t high;
     uint32_t subRefOffs;
   };
 
@@ -39,10 +39,12 @@ public:
 private:
   virtual bool GetInstrPointers() override;
 };
+
 class RBNKSamp : public VGMSamp {
 public:
-  RBNKSamp(VGMSampColl *sampColl, uint32_t offset, uint32_t length, uint32_t dataOffset, uint32_t dataLength) :
+  RBNKSamp(VGMSampColl *sampColl, uint32_t offset, uint32_t length, uint32_t dataOffset, uint32_t dataLength, std::wstring name_ = L"Sample") :
     VGMSamp(sampColl, offset, length, dataOffset, dataLength) {
+    name = name_;
     Load();
   }
 
@@ -100,7 +102,7 @@ public:
     std::wstring name = L"RWAR Sample Collection")
     : VGMSampColl(RSARFormat::name, file, offset, length, name) {}
 private:
-  VGMSamp * ParseRWAVFile(uint32_t offset);
+  VGMSamp * ParseRWAVFile(uint32_t offset, uint32_t index);
 
   virtual bool GetHeaderInfo() override;
   virtual bool GetSampleInfo() override;

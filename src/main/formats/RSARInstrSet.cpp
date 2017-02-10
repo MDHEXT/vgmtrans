@@ -104,14 +104,14 @@ bool RBNKInstr::LoadInstr() {
 
   for (uint32_t i = 0; i < keyRegions.size(); i++) {
     Region keyRegion = keyRegions[i];
-    uint8_t keyLow = keyRegion.low;
-    uint8_t keyHigh = (i + 1 < keyRegions.size()) ? keyRegions[i + 1].low : 0x7F;
+    uint8_t keyLow = (i > 0) ? keyRegions[i - 1].high + 1 : 0;
+    uint8_t keyHigh = keyRegion.high;
 
     std::vector<Region> velRegions = EnumerateRegionTable(keyRegion.subRefOffs);
     for (uint32_t j = 0; j < velRegions.size(); j++) {
       Region velRegion = velRegions[j];
-      uint8_t velLow = velRegion.low;
-      uint8_t velHigh = (j + 1 < velRegions.size()) ? velRegions[j + 1].low : 0x7F;
+      uint8_t velLow = (j > 0) ? velRegions[j - 1].high + 1 : 0;
+      uint8_t velHigh = velRegion.high;
 
       uint32_t offs = parInstrSet->dwOffset + GetWordBE(velRegion.subRefOffs + 0x04);
       VGMRgn *rgn = AddRgn(offs, 0, 0, keyLow, keyHigh, velLow, velHigh);
@@ -128,7 +128,7 @@ std::vector<RBNKInstr::Region> RBNKInstr::EnumerateRegionTable(uint32_t refOffse
   /* First, enumerate based on key. */
   switch (regionSet) {
   case RegionSet::DIRECT:
-    return { { 0, refOffset } };
+    return { { 0x7F, refOffset } };
   case RegionSet::RANGE: {
     uint32_t offs = parInstrSet->dwOffset + GetWordBE(refOffset + 0x04);
     uint8_t tableSize = GetByte(offs);
@@ -136,9 +136,9 @@ std::vector<RBNKInstr::Region> RBNKInstr::EnumerateRegionTable(uint32_t refOffse
 
     std::vector<Region> table;
     for (uint8_t i = 0; i < tableSize; i++) {
-      uint32_t low = GetByte(offs + 1 + i);
+      uint32_t hi = GetByte(offs + 1 + i);
       uint32_t subRefOffs = tableEnd + (i * 8);
-      Region region = { low, subRefOffs };
+      Region region = { hi, subRefOffs };
       table.push_back(region);
     }
     return table;
@@ -295,8 +295,6 @@ void RBNKSamp::Load() {
   /* Quite sure this maps to end bytes, even without looping. */
   dataLength = loopEnd;
   ulUncompressedSize = DspAddressToSamples(loopEnd) * (bps / 8) * channels;
-
-  name = (format == PCM8 ? L"PCM8" : format == PCM16 ? L"PCM16" : L"ADPCM");
 }
 
 static int16_t Clamp16(int32_t sample) {
@@ -406,13 +404,15 @@ bool RSARSampCollWAVE::GetSampleInfo() {
   uint32_t waveTableIdx = dwOffset + 0x08;
   for (uint32_t i = 0; i < waveTableCount; i++) {
     uint32_t waveOffs = dwOffset + GetWordBE(waveTableIdx);
-    samples.push_back(new RBNKSamp(this, waveOffs, 0, waveDataOffset, 0));
+    wchar_t sampName[32];
+    swprintf(sampName, sizeof(sampName) / sizeof(*sampName), L"Sample_%04d", i);
+    samples.push_back(new RBNKSamp(this, waveOffs, 0, waveDataOffset, 0, sampName));
     waveTableIdx += 0x08;
   }
   return true;
 }
 
-VGMSamp * RSARSampCollRWAR::ParseRWAVFile(uint32_t offset) {
+VGMSamp * RSARSampCollRWAR::ParseRWAVFile(uint32_t offset, uint32_t index) {
   if (!rawfile->MatchBytes("RWAV\xFE\xFF\x01", offset))
     return nullptr;
 
@@ -426,13 +426,19 @@ VGMSamp * RSARSampCollRWAR::ParseRWAVFile(uint32_t offset) {
   uint32_t dataOffset = infoBlock.offset + 0x08;
   uint32_t dataSize = dataBlock.size + 0x08;
 
-  return new RBNKSamp(this, infoBlock.offset, infoBlock.size, dataOffset, dataSize);
+  wchar_t sampName[32];
+  swprintf(sampName, sizeof(sampName) / sizeof(*sampName), L"Sample_%04d", index);
+  return new RBNKSamp(this, infoBlock.offset, infoBlock.size, dataOffset, dataSize, sampName);
 }
 
 bool RSARSampCollRWAR::GetHeaderInfo() {
   if (!rawfile->MatchBytes("RWAR\xFE\xFF\x01", dwOffset))
     return false;
 
+  return true;
+}
+
+bool RSARSampCollRWAR::GetSampleInfo() {
   uint32_t tablBlockOffs = dwOffset + GetWordBE(dwOffset + 0x10);
   uint32_t dataBlockOffs = dwOffset + GetWordBE(dwOffset + 0x18);
   FileRange tablBlock = CheckBlock(rawfile, tablBlockOffs, "TABL");
@@ -442,13 +448,9 @@ bool RSARSampCollRWAR::GetHeaderInfo() {
   for (uint32_t i = 0; i < waveTableCount; i++) {
     uint32_t rwavHeaderOffs = dataBlockOffs + GetWordBE(waveTableIdx);
     uint32_t rwavHeaderSize = GetWordBE(waveTableIdx + 0x04);
-    samples.push_back(ParseRWAVFile(rwavHeaderOffs));
+    samples.push_back(ParseRWAVFile(rwavHeaderOffs, i));
     waveTableIdx += 0x0C;
   }
 
-  return true;
-}
-
-bool RSARSampCollRWAR::GetSampleInfo() {
   return true;
 }
