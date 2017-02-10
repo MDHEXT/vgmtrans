@@ -93,7 +93,7 @@ static void SetupEnvelope(VGMRgn *rgn, uint8_t attack, uint8_t decay, uint8_t su
 
   rgn->sustain_level = 1.0 - (sustainLev / VOLUME_DB_MIN);
 
-  float releaseRate = GetFallingRate(decay);
+  float releaseRate = GetFallingRate(release);
 
   /* Release time is the time it takes to get from sustain level to minimum volume. */
   rgn->release_time = ((sustainLev - VOLUME_DB_MIN) / -releaseRate) * 1000.0;
@@ -143,9 +143,20 @@ std::vector<RBNKInstr::Region> RBNKInstr::EnumerateRegionTable(uint32_t refOffse
     }
     return table;
   }
-  case RegionSet::INDEX:
-    /* TODO: Implement INDEX region sets. */
-    return {};
+  case RegionSet::INDEX: {
+    uint32_t offs = parInstrSet->dwOffset + GetWordBE(refOffset + 0x04);
+    uint8_t min = GetByte(offs + 0);
+    uint8_t max = GetByte(offs + 1);
+    uint32_t tableEnd = offs + 4;
+
+    std::vector<Region> table;
+    for (uint8_t i = min; i < max; i++) {
+      uint32_t subRefOffs = tableEnd + (i * 8);
+      Region region = { i, subRefOffs };
+      table.push_back(region);
+    }
+    return table;
+  }
   case RegionSet::NONE:
     return {};
   default:
