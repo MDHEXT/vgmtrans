@@ -97,9 +97,9 @@ private:
 
   std::vector<std::string> ParseSymbBlock(uint32_t blockBase);
   std::vector<Sound> ReadSoundTable(uint32_t infoBlockOffs);
-  std::vector<Bank> RSAR::ReadBankTable(uint32_t infoBlockOffs);
-  std::vector<File> RSAR::ReadFileTable(uint32_t infoBlockOffs);
-  std::vector<Group> RSAR::ReadGroupTable(uint32_t infoBlockOffs);
+  std::vector<Bank> ReadBankTable(uint32_t infoBlockOffs);
+  std::vector<File> ReadFileTable(uint32_t infoBlockOffs);
+  std::vector<Group> ReadGroupTable(uint32_t infoBlockOffs);
 
   RBNK ParseRBNK(Bank *bank);
   RSEQ ParseRSEQ(Sound *sound);
