@@ -7,82 +7,9 @@
 
 DECLARE_FORMAT(RSAR);
 
-/* Utility */
-
-struct FileRange {
-  uint32_t offset;
-  uint32_t size;
-};
-
-static bool MatchMagic(RawFile *file, uint32_t offs, const char *magic) {
-  char buf[16];
-  assert(sizeof(buf) >= strlen(magic));
-  file->GetBytes(offs, strlen(magic), buf);
-  return memcmp(buf, magic, strlen(magic)) == 0;
-}
-
-static FileRange CheckBlock(RawFile *file, uint32_t offs, const char *magic) {
-  if (!MatchMagic(file, offs, magic))
-    return{ 0, 0 };
-
-  uint32_t size = file->GetWordBE(offs + 0x04);
-  return{ offs + 0x08, size - 0x08 };
-}
-
-/* RBNK */
-
 /* RSAR */
 
-struct Sound {
-  std::string name;
-  uint32_t fileID;
-
-  enum Type { SEQ = 1, STRM = 2, WAVE = 3 } type;
-  struct {
-    uint32_t dataOffset;
-    uint32_t bankID;
-    uint32_t allocTrack;
-  } seq;
-};
-
-struct Bank {
-  std::string name;
-  uint32_t fileID;
-};
-
-struct GroupItem {
-  uint32_t fileID;
-  FileRange data;
-  FileRange waveData;
-};
-
-struct Group {
-  std::string name;
-  FileRange data;
-  FileRange waveData;
-  std::vector<GroupItem> items;
-};
-
-struct File {
-  uint32_t groupID;
-  uint32_t index;
-};
-
-struct Context {
-  RawFile *file;
-
-  /* RSAR structure internals... */
-  std::vector<std::string> stringTable;
-  std::vector<Sound> soundTable;
-  std::vector<Bank> bankTable;
-  std::vector<File> fileTable;
-  std::vector<Group> groupTable;
-
-  /* Parsed stuff. */
-  std::vector<RBNK> rbnks;
-};
-
-static std::vector<std::string> ParseSymbBlock(RawFile *file, uint32_t blockBase) {
+std::vector<std::string> RSAR::ParseSymbBlock(uint32_t blockBase) {
   uint32_t strTableBase = blockBase + file->GetWordBE(blockBase);
   uint32_t strTableCount = file->GetWordBE(strTableBase + 0x00);
 
@@ -100,7 +27,7 @@ static std::vector<std::string> ParseSymbBlock(RawFile *file, uint32_t blockBase
   return table;
 }
 
-static std::vector<Sound> ReadSoundTable(Context *context, RawFile *file, uint32_t infoBlockOffs) {
+std::vector<RSAR::Sound> RSAR::ReadSoundTable(uint32_t infoBlockOffs) {
   uint32_t soundTableOffs = file->GetWordBE(infoBlockOffs + 0x04);
   uint32_t soundTableCount = file->GetWordBE(infoBlockOffs + soundTableOffs);
   std::vector<Sound> soundTable;
@@ -113,7 +40,7 @@ static std::vector<Sound> ReadSoundTable(Context *context, RawFile *file, uint32
     Sound sound;
     uint32_t stringID = file->GetWordBE(soundBase + 0x00);
     if (stringID != 0xFFFFFFFF)
-      sound.name = context->stringTable[stringID];
+      sound.name = stringTable[stringID];
     sound.fileID = file->GetWordBE(soundBase + 0x04);
     /* 0x08 player */
     /* 0x0C param3DRef */
@@ -135,7 +62,7 @@ static std::vector<Sound> ReadSoundTable(Context *context, RawFile *file, uint32
   return soundTable;
 }
 
-static std::vector<Bank> ReadBankTable(Context *context, RawFile *file, uint32_t infoBlockOffs) {
+std::vector<RSAR::Bank> RSAR::ReadBankTable(uint32_t infoBlockOffs) {
   uint32_t bankTableOffs = file->GetWordBE(infoBlockOffs + 0x0C);
   uint32_t bankTableCount = file->GetWordBE(infoBlockOffs + bankTableOffs);
   std::vector<Bank> bankTable;
@@ -148,7 +75,7 @@ static std::vector<Bank> ReadBankTable(Context *context, RawFile *file, uint32_t
     Bank bank;
     uint32_t stringID = file->GetWordBE(bankBase + 0x00);
     if (stringID != 0xFFFFFFFF)
-      bank.name = context->stringTable[stringID];
+      bank.name = stringTable[stringID];
     bank.fileID = file->GetWordBE(bankBase + 0x04);
     bankTable.push_back(bank);
   }
@@ -156,7 +83,7 @@ static std::vector<Bank> ReadBankTable(Context *context, RawFile *file, uint32_t
   return bankTable;
 }
 
-static std::vector<File> ReadFileTable(Context *context, RawFile *file, uint32_t infoBlockOffs) {
+std::vector<RSAR::File> RSAR::ReadFileTable(uint32_t infoBlockOffs) {
   uint32_t fileTableOffs = file->GetWordBE(infoBlockOffs + 0x1C);
   uint32_t fileTableCount = file->GetWordBE(infoBlockOffs + fileTableOffs);
   std::vector<File> fileTable;
@@ -185,7 +112,7 @@ static std::vector<File> ReadFileTable(Context *context, RawFile *file, uint32_t
   return fileTable;
 }
 
-static std::vector<Group> ReadGroupTable(Context *context, RawFile *file, uint32_t infoBlockOffs) {
+std::vector<RSAR::Group> RSAR::ReadGroupTable(uint32_t infoBlockOffs) {
   uint32_t groupTableOffs = file->GetWordBE(infoBlockOffs + 0x24);
   uint32_t groupTableCount = file->GetWordBE(infoBlockOffs + groupTableOffs);
   std::vector<Group> groupTable;
@@ -198,7 +125,7 @@ static std::vector<Group> ReadGroupTable(Context *context, RawFile *file, uint32
     uint32_t stringID = file->GetWordBE(groupBase + 0x00);
     Group group;
     if (stringID != 0xFFFFFFFF)
-      group.name = context->stringTable[stringID];
+      group.name = stringTable[stringID];
     group.data.offset = file->GetWordBE(groupBase + 0x10);
     group.data.size = file->GetWordBE(groupBase + 0x14);
     group.waveData.offset = file->GetWordBE(groupBase + 0x18);
@@ -226,74 +153,135 @@ static std::vector<Group> ReadGroupTable(Context *context, RawFile *file, uint32
   return groupTable;
 }
 
-static RBNK LoadBank(Context *context, Bank *bank) {
-  File fileInfo = context->fileTable[bank->fileID];
-  Group groupInfo = context->groupTable[fileInfo.groupID];
+RSAR::RBNK RSAR::ParseRBNK(Bank *bank) {
+  File fileInfo = fileTable[bank->fileID];
+  Group groupInfo = groupTable[fileInfo.groupID];
   GroupItem itemInfo = groupInfo.items[fileInfo.index];
 
   assert(itemInfo.fileID == bank->fileID);
   uint32_t rbnkOffset = itemInfo.data.offset + groupInfo.data.offset;
-  uint32_t waveOffset = itemInfo.waveData.offset + groupInfo.waveData.offset;
+  uint32_t waveDataOffset = itemInfo.waveData.offset + groupInfo.waveData.offset;
+  
+  RBNK rbnk = {};
+  rbnk.name = bank->name;
 
-  return RBNK::Parse(context->file, string2wstring(bank->name), rbnkOffset, waveOffset);
+  if (!file->MatchBytes("RBNK\xFE\xFF\x01", rbnkOffset))
+    return rbnk;
+
+  uint32_t version = file->GetByte(rbnkOffset + 0x07);
+  uint32_t dataBlockOffs = rbnkOffset + file->GetWordBE(rbnkOffset + 0x10);
+  uint32_t waveBlockOffs = rbnkOffset + file->GetWordBE(rbnkOffset + 0x18);
+
+  rbnk.instr = CheckBlock(dataBlockOffs, "DATA");
+  rbnk.wave = CheckBlock(waveBlockOffs, "WAVE");
+  rbnk.waveDataOffset = waveDataOffset;
+
+  if (rbnk.wave.size != 0) {
+    rbnk.type = RBNK::SampCollType::WAVE;
+  } else {
+    rbnk.type = RBNK::SampCollType::RWAR;
+  }
+
+  return rbnk;
 }
 
-static void LoadSeq(Context *context, Sound *sound) {
+RSAR::RSEQ RSAR::ParseRSEQ(Sound *sound) {
   assert(sound->type == Sound::SEQ);
 
-  File fileInfo = context->fileTable[sound->fileID];
-  Group groupInfo = context->groupTable[fileInfo.groupID];
+  File fileInfo = fileTable[sound->fileID];
+  Group groupInfo = groupTable[fileInfo.groupID];
   GroupItem itemInfo = groupInfo.items[fileInfo.index];
 
-  bool success;
-
   uint32_t rseqOffset = itemInfo.data.offset + groupInfo.data.offset;
-  VGMSeq *seq = RSARSeq::Parse(context->file, string2wstring(sound->name), rseqOffset, sound->seq.dataOffset);
-  success = seq->LoadVGMFile();
-  assert(success);
-  RBNK rbnk = context->rbnks[sound->seq.bankID];
 
-  VGMColl *coll = new VGMColl(string2wstring(sound->name));
-  if (rbnk.instrSet)
-    coll->AddInstrSet(rbnk.instrSet);
-  if (rbnk.sampColl)
-    coll->AddSampColl(rbnk.sampColl);
-  coll->UseSeq(seq);
-  success = coll->Load();
-  assert(success);
+  RSEQ rseq = {};
+  rseq.name = sound->name;
+
+  if (!file->MatchBytes("RSEQ\xFE\xFF\x01", rseqOffset))
+    return rseq;
+
+  uint32_t version = file->GetByte(rseqOffset + 0x07);
+  uint32_t dataBlockBase = rseqOffset + file->GetWordBE(rseqOffset + 0x10);
+
+  FileRange dataBlock = CheckBlock(dataBlockBase, "DATA");
+  rseq.rseqOffset = dataBlockBase + file->GetWordBE(dataBlock.offset + 0x00);
+  rseq.dataOffset = sound->seq.dataOffset;
+  rseq.bankIdx = sound->seq.bankID;
+  return rseq;
 }
 
-void RSARScanner::Scan(RawFile *file, void *info) {
-  if (!MatchMagic(file, 0, "RSAR\xFE\xFF\x01"))
-    return;
+bool RSAR::Parse() {
+  if (!file->MatchBytes("RSAR\xFE\xFF\x01", 0))
+    return false;
 
   uint32_t version = file->GetByte(0x07);
   uint32_t symbBlockOffs = file->GetWordBE(0x10);
   uint32_t infoBlockOffs = file->GetWordBE(0x18);
   uint32_t fileBlockOffs = file->GetWordBE(0x20);
 
-  FileRange symbBlockBase = CheckBlock(file, symbBlockOffs, "SYMB");
-  std::vector<std::string> strTable = ParseSymbBlock(file, symbBlockBase.offset);
-
-  Context context;
-  context.file = file;
-  context.stringTable = strTable;
-
-  FileRange infoBlockBase = CheckBlock(file, infoBlockOffs, "INFO");
-
   /*
-  uint32_t playerTableOffs = file->GetWordBE(infoBlockBase + 0x14);
+  uint32_t playerTableOffs = file->GetWordBE(0x14);
   */
 
-  context.soundTable = ReadSoundTable(&context, file, infoBlockBase.offset);
-  context.bankTable = ReadBankTable(&context, file, infoBlockBase.offset);
-  context.fileTable = ReadFileTable(&context, file, infoBlockBase.offset);
-  context.groupTable = ReadGroupTable(&context, file, infoBlockBase.offset);
+  FileRange symbBlockBase = CheckBlock(symbBlockOffs, "SYMB");
+  stringTable = ParseSymbBlock(symbBlockBase.offset);
 
-  /* Load all BNKS. */
-  for (size_t i = 0; i < context.bankTable.size(); i++)
-    context.rbnks.push_back(LoadBank(&context, &context.bankTable[i]));
+  FileRange infoBlockBase = CheckBlock(infoBlockOffs, "INFO");
+  soundTable = ReadSoundTable(infoBlockBase.offset);
+  bankTable = ReadBankTable(infoBlockBase.offset);
+  fileTable = ReadFileTable(infoBlockBase.offset);
+  groupTable = ReadGroupTable(infoBlockBase.offset);
 
-  for (size_t i = 0; i < context.soundTable.size(); i++)
-    LoadSeq(&context, &context.soundTable[i]);
+  for (size_t i = 0; i < bankTable.size(); i++)
+    rbnks.push_back(ParseRBNK(&bankTable[i]));
+
+  for (size_t i = 0; i < soundTable.size(); i++)
+    rseqs.push_back(ParseRSEQ(&soundTable[i]));
+
+  return true;
+}
+
+VGMSampColl * RSARScanner::LoadBankSampColl(RawFile *file, RSAR::RBNK *rbnk) {
+  switch (rbnk->type) {
+  case RSAR::RBNK::SampCollType::RWAR:
+    return new RSARSampCollRWAR(file, rbnk->waveDataOffset, 0, string2wstring(rbnk->name));
+  case RSAR::RBNK::SampCollType::WAVE:
+    return new RSARSampCollWAVE(file, rbnk->wave.offset, rbnk->wave.size, rbnk->waveDataOffset, 0, string2wstring(rbnk->name));
+  default:
+    return nullptr;
+  }
+}
+
+void RSARScanner::Scan(RawFile *file, void *info) {
+  RSAR rsar(file);
+ 
+  if (!rsar.Parse())
+    return;
+
+  /* Load all the banks. */
+  std::vector<VGMSampColl *> sampColls;
+  std::vector<VGMInstrSet *> instrSets;
+  for (size_t i = 0; i < rsar.rbnks.size(); i++) {
+    RSAR::RBNK *rbnk = &rsar.rbnks[i];
+    VGMSampColl *sampColl = LoadBankSampColl(file, rbnk);
+    sampColl->LoadVGMFile();
+    sampColls.push_back(sampColl);
+
+    VGMInstrSet *instrSet = new RSARInstrSet(file, rbnk->instr.offset, rbnk->instr.size, string2wstring(rbnk->name), sampColl);
+    instrSet->LoadVGMFile();
+    instrSets.push_back(instrSet);
+  }
+
+  for (size_t i = 0; i < rsar.rseqs.size(); i++) {
+    RSAR::RSEQ *rseq = &rsar.rseqs[i];
+    VGMSeq *seq = new RSARSeq(file, rseq->rseqOffset, rseq->dataOffset, 0, string2wstring(rseq->name));
+    seq->LoadVGMFile();
+
+    VGMColl *coll = new VGMColl(string2wstring(rseq->name));
+    coll->AddSampColl(sampColls[rseq->bankIdx]);
+    coll->AddInstrSet(instrSets[rseq->bankIdx]);
+    coll->UseSeq(seq);
+
+    coll->Load();
+  }
 }

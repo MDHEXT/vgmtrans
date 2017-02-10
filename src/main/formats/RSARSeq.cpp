@@ -4,9 +4,8 @@
 /* Seems to be very similar, if not the exact same, as the MML in SSEQ and JaiSeq.
  * Perhaps a cleanup is in order? */
 
- /* From https://github.com/libertyernie/brawltools/blob/master/BrawlLib/SSBB/Types/Audio/RSEQ.cs#L124 */
-enum Mml
-{
+/* From https://github.com/libertyernie/brawltools/blob/master/BrawlLib/SSBB/Types/Audio/RSEQ.cs#L124 */
+enum {
   MML_WAIT = 0x80,
   MML_PRG = 0x81,
 
@@ -77,6 +76,8 @@ uint32_t RSARTrack::ReadArg(ArgType defaultArgType, uint32_t &offset) {
   switch (argType) {
   case ARG_VAR:
     return ReadVarLen(offset);
+  case ARG_U8:
+    return GetByte(offset++);
   case ARG_RANDOM: {
     int16_t min = GetShortBE(offset);
     offset += 2;
@@ -105,10 +106,11 @@ bool RSARTrack::ReadEvent() {
     if (noteWait) {
       AddTime(dur);
     }
-  }
-  else {
+  } else {
     switch (status_byte) {
     case MML_RANDOM:
+      AddUnknown(beginOffset, curOffset - beginOffset, L"Random");
+      nextArgType = ARG_RANDOM;
       break;
     case MML_WAIT:
       dur = ReadArg(ARG_VAR, curOffset);
@@ -161,12 +163,12 @@ bool RSARTrack::ReadEvent() {
       AddUnknown(beginOffset, curOffset - beginOffset, L"Timebase");
       break;
     case MML_TRANSPOSE: {
-      int8_t transpose = (signed)GetByte(curOffset++);
+      int8_t transpose = (int8_t) ReadArg(ARG_U8, curOffset);
       AddTranspose(beginOffset, curOffset - beginOffset, transpose);
       break;
     }
     case MML_PITCH_BEND: {
-      int16_t bend = (signed)GetByte(curOffset++) * 64;
+      int16_t bend = ((int8_t) ReadArg(ARG_U8, curOffset)) * 64;
       AddPitchBend(beginOffset, curOffset - beginOffset, bend);
       break;
     }
@@ -305,7 +307,7 @@ bool RSARTrack::ReadEvent() {
       else if ((ex & 0xF0) == 0x80 || (ex & 0xF0) == 0x90)
         curOffset += 3;
       else
-        assert(false);
+        return false;
       AddUnknown(beginOffset, curOffset - beginOffset, L"Extended Command");
       break;
     }
@@ -345,40 +347,4 @@ bool RSARSeq::GetTrackPointers() {
   }
 
   return true;
-}
-
-/* XXX: Don't copy/paste these. */
-
-struct FileRange {
-  uint32_t offset;
-  uint32_t size;
-};
-
-static bool MatchMagic(RawFile *file, uint32_t offs, const char *magic) {
-  char buf[16];
-  assert(sizeof(buf) >= strlen(magic));
-  file->GetBytes(offs, strlen(magic), buf);
-  return memcmp(buf, magic, strlen(magic)) == 0;
-}
-
-static FileRange CheckBlock(RawFile *file, uint32_t offs, const char *magic) {
-  if (!MatchMagic(file, offs, magic))
-    return { 0, 0 };
-
-  uint32_t size = file->GetWordBE(offs + 0x04);
-  return { offs + 0x08, size - 0x08 };
-}
-
-VGMSeq * RSARSeq::Parse(RawFile *file, std::wstring name, uint32_t rseqOffset, uint32_t dataOffset) {
-  if (!MatchMagic(file, rseqOffset, "RSEQ\xFE\xFF\x01"))
-    return nullptr;
-
-  uint32_t version = file->GetByte(rseqOffset + 0x07);
-  uint32_t dataBlockBase = rseqOffset + file->GetWordBE(rseqOffset + 0x10);
-
-  FileRange dataBlock = CheckBlock(file, dataBlockBase, "DATA");
-  uint32_t seqBase = dataBlockBase + file->GetWordBE(dataBlock.offset + 0x00);
-  uint32_t seqOffset = dataOffset;
-
-  return new RSARSeq(file, seqBase, seqOffset, 0, name);
 }

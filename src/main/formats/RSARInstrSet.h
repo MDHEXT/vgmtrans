@@ -12,7 +12,12 @@ public:
     : VGMInstr(instrSet, offset, length, theBank, theInstrNum) {}
 
 private:
-  enum RegionSet { DIRECT = 1, RANGE = 2, INDEX = 3, NONE = 4 };
+  enum RegionSet {
+    DIRECT = 1,
+    RANGE = 2,
+    INDEX = 3,
+    NONE = 4
+  };
 
   struct Region {
     uint32_t low;
@@ -42,7 +47,12 @@ public:
   }
 
 private:
-  enum Format { PCM8 = 0, PCM16 = 1, ADPCM = 2 } format;
+  enum Format {
+    PCM8 = 0,
+    PCM16 = 1,
+    ADPCM = 2
+  };
+  Format format;
 
   struct AdpcmParam {
     uint16_t coef[16];
@@ -94,11 +104,4 @@ private:
 
   virtual bool GetHeaderInfo() override;
   virtual bool GetSampleInfo() override;
-};
-
-struct RBNK {
-  VGMInstrSet *instrSet;
-  VGMSampColl *sampColl;
-
-  static RBNK Parse(RawFile *file, std::wstring name, uint32_t rbnkOffset, uint32_t waveDataOffset);
 };

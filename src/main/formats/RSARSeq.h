@@ -18,7 +18,12 @@ private:
   };
   std::stack<StackFrame> callStack;
 
-  enum ArgType { ARG_DEFAULT, ARG_VAR, ARG_RANDOM };
+  enum ArgType {
+    ARG_DEFAULT,
+    ARG_VAR,
+    ARG_U8,
+    ARG_RANDOM,
+  };
   ArgType nextArgType = ARG_DEFAULT;
 
   uint32_t Read24BE(uint32_t &offset) {
@@ -35,8 +40,6 @@ class RSARSeq : public VGMSeq {
 public:
   RSARSeq(RawFile *file, uint32_t offset, uint32_t pMasterTrackOffset, uint32_t length, std::wstring name) :
     VGMSeq(RSARFormat::name, file, offset, length, name), masterTrackOffset(pMasterTrackOffset) {}
-
-  static VGMSeq * Parse(RawFile *file, std::wstring name, uint32_t rseqOffset, uint32_t dataOffset);
 
 private:
   uint32_t allocTrack;
