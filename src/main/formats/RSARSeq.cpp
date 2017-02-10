@@ -158,18 +158,21 @@ bool RSARTrack::ReadEvent() {
       AddUnknown(beginOffset, curOffset - beginOffset, L"Master Volume");
       break;
     }
-    case MML_TIMEBASE:
-      curOffset++;
-      AddUnknown(beginOffset, curOffset - beginOffset, L"Timebase");
+    case MML_TIMEBASE: {
+      uint8_t ppqn = GetByte(curOffset++);
+      parentSeq->SetPPQN(ppqn);
       break;
+    }
     case MML_TRANSPOSE: {
       int8_t transpose = (int8_t) ReadArg(ARG_U8, curOffset);
       AddTranspose(beginOffset, curOffset - beginOffset, transpose);
       break;
     }
     case MML_PITCH_BEND: {
-      int16_t bend = ((int8_t) ReadArg(ARG_U8, curOffset)) * 64;
-      AddPitchBend(beginOffset, curOffset - beginOffset, bend);
+      int8_t bend = (int8_t) ReadArg(ARG_U8, curOffset);
+      /* Pitch bends in RSEQ are 0-7F. MID is 16-bit: 0-7FFF. */
+      int16_t midiBend = (bend << 8) | ((bend & 0x0F) << 4) | (bend & 0x0F);
+      AddPitchBend(beginOffset, curOffset - beginOffset, midiBend);
       break;
     }
     case MML_BEND_RANGE: {
