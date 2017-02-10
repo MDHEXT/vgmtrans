@@ -65,7 +65,7 @@ static void SetupEnvelope(VGMRgn *rgn, uint8_t attack, uint8_t decay, uint8_t su
 
   /* Scale is dB*10, so the first number is actually -72.3dB.
    * Minimum possible volume is -90.4dB. */
-  const uint16_t sustainTable[] = {
+  const int16_t sustainTable[] = {
     -723, -722, -721, -651, -601, -562, -530, -503,
     -480, -460, -442, -425, -410, -396, -383, -371,
     -360, -349, -339, -330, -321, -313, -305, -297,
@@ -85,7 +85,7 @@ static void SetupEnvelope(VGMRgn *rgn, uint8_t attack, uint8_t decay, uint8_t su
   };
 
   float decayRate = GetFallingRate(decay);
-  uint16_t sustainLev = sustainTable[sustain];
+  int16_t sustainLev = sustainTable[sustain];
 
   /* Decay time is the time it takes to get to the sustain level from max vol,
    * decaying by decayRate every 1ms. */
