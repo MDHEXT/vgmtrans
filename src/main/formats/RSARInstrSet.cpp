@@ -151,7 +151,8 @@ std::vector<RBNKInstr::Region> RBNKInstr::EnumerateRegionTable(uint32_t refOffse
 
     std::vector<Region> table;
     for (uint8_t i = min; i < max; i++) {
-      uint32_t subRefOffs = tableEnd + (i * 8);
+      uint8_t idx = i - min;
+      uint32_t subRefOffs = tableEnd + (idx * 8);
       Region region = { i, subRefOffs };
       table.push_back(region);
     }
