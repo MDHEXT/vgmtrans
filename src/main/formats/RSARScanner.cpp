@@ -267,7 +267,7 @@ void RSARScanner::Scan(RawFile *file, void *info) {
     sampColl->LoadVGMFile();
     sampColls.push_back(sampColl);
 
-    VGMInstrSet *instrSet = new RSARInstrSet(file, rbnk->instr.offset, rbnk->instr.size, string2wstring(rbnk->name), sampColl);
+    VGMInstrSet *instrSet = new RSARInstrSet(file, rbnk->instr.offset, rbnk->instr.size, string2wstring(rbnk->name));
     instrSet->LoadVGMFile();
     instrSets.push_back(instrSet);
   }
