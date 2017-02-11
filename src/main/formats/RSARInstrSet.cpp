@@ -1,8 +1,6 @@
 #include "pch.h"
 #include "RSARInstrSet.h"
 
-static const double INTR_FREQUENCY = 1.0 / 192.0;
-
 static float GetFallingRate(uint8_t DecayTime) {
   if (DecayTime == 0x7F)
     return 65535.0f;
@@ -54,9 +52,9 @@ static void SetupEnvelope(VGMRgn *rgn, uint8_t attack, uint8_t decay, uint8_t su
   float realAttack = attackTable[attack];
   int msecs = 0;
 
-  const float VOLUME_DB_MIN = -904.0f;
+  const float VOLUME_DB_MIN = -90.4f;
 
-  float vol = VOLUME_DB_MIN;
+  float vol = VOLUME_DB_MIN * 10.0f;
   while (vol <= -1.0f / 32.0f) {
     vol *= realAttack;
     msecs++;
@@ -89,14 +87,14 @@ static void SetupEnvelope(VGMRgn *rgn, uint8_t attack, uint8_t decay, uint8_t su
 
   /* Decay time is the time it takes to get to the sustain level from max vol,
    * decaying by decayRate every 1ms. */
-  rgn->decay_time = ((0.0f - sustainLev) / decayRate) * 1000.0;
+  rgn->decay_time = ((0.0f - sustainLev) / decayRate) / 1000.0;
 
   rgn->sustain_level = 1.0 - (sustainLev / VOLUME_DB_MIN);
 
   float releaseRate = GetFallingRate(release);
 
   /* Release time is the time it takes to get from sustain level to minimum volume. */
-  rgn->release_time = ((sustainLev - VOLUME_DB_MIN) / -releaseRate) * 1000.0;
+  rgn->release_time = ((sustainLev - VOLUME_DB_MIN) / releaseRate) / 1000.0;
 }
 
 bool RBNKInstr::LoadInstr() {
